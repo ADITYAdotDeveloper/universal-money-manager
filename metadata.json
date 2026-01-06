@@ -1,0 +1,5 @@
+{
+  "name": "Money Manager",
+  "description": "A mobile-first, minimalistic money tracker with 4-column categorization (Income, Expense, Donation, Debt) and category-wise insights.",
+  "requestFramePermissions": []
+}
