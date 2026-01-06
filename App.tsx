@@ -71,17 +71,27 @@ function App() {
   };
 
   // --- Derived State (Summary Logic) ---
-  const { filteredTransactions, summary, debtStats } = useMemo(() => {
-    const now = new Date();
+  const { filteredTransactions, summary, debtStats, periodDebtPaid } = useMemo(() => {
+    // Determine "Now" in IST
+    const d = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = d.getTime() + istOffset;
+    const nowIST = new Date(istTime);
+    
+    const currentMonth = nowIST.getUTCMonth();
+    const currentYear = nowIST.getUTCFullYear();
     
     // 1. Filter Transactions based on ViewMode (Month/Year)
     let filterFn = (t: Transaction) => {
+        // Parse date as stored (UTC Midnight)
         const tDate = new Date(t.date);
+        
+        // Use UTC methods on tDate because stored date is absolute UTC representing the selected YYYY-MM-DD
         if (viewMode === 'YEAR') {
-            return tDate.getFullYear() === now.getFullYear();
+            return tDate.getUTCFullYear() === currentYear;
         }
         // For Home and Month, default to Month
-        return tDate.getMonth() === now.getMonth() && tDate.getFullYear() === now.getFullYear();
+        return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
     };
 
     const filtered = transactions.filter(filterFn).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -121,6 +131,7 @@ function App() {
     };
 
     // 3. Calculate Debt Stats (Global)
+    // CRITICAL: Uses single source of truth (transactions array) for all Debt UI
     let totalDebt = 0;
     let paidDebt = 0;
 
@@ -135,10 +146,23 @@ function App() {
       }
     });
 
+    // 4. Calculate Period Debt Paid (for Month/Year views)
+    // Uses the 'filtered' transactions which are already filtered by the current view mode (Month or Year)
+    let periodDebtPaid = 0;
+    filtered.forEach(t => {
+      if (t.type === 'DEBT') {
+        const val = Number(t.amount);
+        if (val < 0 || t.isRepayment) {
+            periodDebtPaid += Math.abs(val);
+        }
+      }
+    });
+
     return {
       filteredTransactions: filtered,
       summary: visualSummary,
-      debtStats: { total: totalDebt, paid: paidDebt, remaining: Math.max(0, totalDebt - paidDebt) }
+      debtStats: { total: totalDebt, paid: paidDebt, remaining: Math.max(0, totalDebt - paidDebt) },
+      periodDebtPaid
     };
   }, [transactions, viewMode]);
 
@@ -215,7 +239,7 @@ function App() {
               <h1 className="text-4xl font-black text-slate-800 dark:text-white tracking-tight">
                 {viewMode === 'HOME' ? (
                   <span>
-                    {CURRENCY_SYMBOL} {summary.NET.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).replace(/\d/g, 'X')}
+                    {`${CURRENCY_SYMBOL} ${summary.NET.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).replace(/\d/g, 'X')}`}
                   </span>
                 ) : (
                   <CountUp end={summary.NET} prefix={CURRENCY_SYMBOL} />
@@ -298,7 +322,9 @@ function App() {
                                   ? (t.amount < 0 || t.isRepayment ? 'Debt Repayment' : t.category) 
                                   : t.category}
                             </p>
-                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{new Date(t.date).toLocaleDateString()}</p>
+                            <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+                              {new Date(t.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'numeric', year: 'numeric' })}
+                            </p>
                           </div>
                         </div>
                         <div className={`text-base font-bold ${t.type === 'DEBT' ? 'text-slate-600 dark:text-slate-400' : TYPE_CONFIG[t.type].color}`}>
@@ -326,6 +352,16 @@ function App() {
                   donation={summary.DONATION.total} 
                   onSectionClick={handleSectionClick}
                />
+               
+               {/* Debt Paid for Current Period */}
+               <div className="mt-8 text-center border-t border-slate-50 dark:border-slate-800 pt-6">
+                 <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1">
+                   Debt Paid ({viewMode === 'MONTH' ? 'Month' : 'Year'})
+                 </p>
+                 <div className="text-xl font-black text-slate-600 dark:text-slate-400">
+                   <CountUp end={periodDebtPaid} prefix={CURRENCY_SYMBOL} />
+                 </div>
+               </div>
             </section>
 
             {/* Debt Visualizer (Also present here as per rule #6) */}
