@@ -27,6 +27,15 @@ const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
 };
 
+// Helper to get local date string (YYYY-MM-DD) correctly
+const getLocalDateStr = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   isOpen,
   onClose,
@@ -40,7 +49,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [type, setType] = useState<TransactionType>(defaultType);
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  // Initialize with local date
+  const [date, setDate] = useState(getLocalDateStr());
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [debtSubtype, setDebtSubtype] = useState<DebtSubtype>('GOOD');
@@ -80,7 +90,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           setDebtAction('BORROW');
         }
         setCategory('');
-        setDate(new Date().toISOString().split('T')[0]);
+        // Always use local date for new transactions
+        setDate(getLocalDateStr());
         
         // Default categories
         if (!category && !isRepaymentMode && categories[defaultType]?.length > 0) {
@@ -125,6 +136,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
     const payload: Transaction = {
       id: existingTransaction ? existingTransaction.id : generateId(),
+      // Ensure the date is saved as ISO but based on the user's selected date
       date: new Date(date).toISOString(),
       amount: finalAmount,
       type: type,
